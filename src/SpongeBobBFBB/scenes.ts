@@ -31,6 +31,7 @@ class PlayerCache extends DataCacheIDName<Player> {}
 class SimpleObjCache extends DataCacheIDName<SimpleObj> {}
 class LightKitCache extends DataCacheIDName<Assets.LightKit> {}
 class ModelInfoCache extends DataCacheIDName<Assets.ModelAssetInfo> {}
+class SurfaceCache extends DataCacheIDName<Assets.SurfAsset> {}
 
 class DataHolder {
     public assetCache = new AssetCache();
@@ -46,6 +47,7 @@ class DataHolder {
     public simpleObjCache = new SimpleObjCache();
     public lightKitCache = new LightKitCache();
     public modelInfoCache = new ModelInfoCache();
+    public surfaceCache = new SurfaceCache();
 
     public jsps: JSP[] = [];
     public env?: Assets.EnvAsset;
@@ -143,17 +145,24 @@ async function loadHIP(dataFetcher: DataFetcher, path: string, beta: boolean, gl
         recurseModelInfo(ent.asset.modelInfoID);
     }
 
-    function loadPickupModel(pickup: Pickup) {
+    function setupEnt(ent: Ent) {
+        if (ent.asset.surfaceID)
+            ent.surface = dataHolder.surfaceCache.getByID(ent.asset.surfaceID);
+        loadEntModels(ent);
+    }
+
+    function setupPickup(pickup: Pickup) {
         if (dataHolder.pickupTable) {
             for (let i = 0; i < dataHolder.pickupTable.Count; i++) {
                 const entry = dataHolder.pickupTable.entries[i];
                 if (entry.pickupHash === pickup.asset.pickupHash) {
                     pickup.asset.ent.modelInfoID = entry.modelID;
-                    loadEntModels(pickup.ent);
-                    return;
+                    break;
                 }
             }
         }
+
+        setupEnt(pickup.ent);
     }
 
     loadAssets({
@@ -249,6 +258,10 @@ async function loadHIP(dataFetcher: DataFetcher, path: string, beta: boolean, gl
 
             dataHolder.simpleObjCache.add({ ent, asset }, a.name, a.id, global);
         },
+        [AssetType.SURF]: (a) => {
+            const stream = new DataStream(a.data, true);
+            dataHolder.surfaceCache.add(Assets.readSurfAsset(stream), a.name, a.id, global);
+        },
         [AssetType.VIL]: (a) => {
             const stream = new DataStream(a.data, true);
             const asset = Assets.readNPCAsset(stream, beta);
@@ -262,25 +275,25 @@ async function loadHIP(dataFetcher: DataFetcher, path: string, beta: boolean, gl
     // method, which causes some MINF assets to be loaded *after* ent assets that reference them
 
     for (const butn of dataHolder.buttonCache.data())
-        loadEntModels(butn.ent);
+        setupEnt(butn.ent);
     
     for (const dstr of dataHolder.destructObjCache.data())
-        loadEntModels(dstr.ent);
+        setupEnt(dstr.ent);
     
     for (const npc of dataHolder.npcCache.data())
-        loadEntModels(npc.ent);
+        setupEnt(npc.ent);
     
     for (const pkup of dataHolder.pickupCache.data())
-        loadPickupModel(pkup);
+        setupPickup(pkup);
 
     for (const plat of dataHolder.platformCache.data())
-        loadEntModels(plat.ent);
+        setupEnt(plat.ent);
 
     for (const simp of dataHolder.simpleObjCache.data())
-        loadEntModels(simp.ent);
+        setupEnt(simp.ent);
 
     for (const plyr of dataHolder.playerCache.data())
-        loadEntModels(plyr.ent);
+        setupEnt(plyr.ent);
 }
 
 class BFBBSceneDesc implements Viewer.SceneDesc {

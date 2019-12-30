@@ -27,10 +27,15 @@ import { EventID } from './enums';
 import { reverseDepthForCompareMode } from '../gfx/helpers/ReversedDepthHelpers';
 import { MathConstants } from '../MathHelpers';
 
+const bindingLayouts: GfxBindingLayoutDescriptor[] = [
+    { numUniformBuffers: 3, numSamplers: 1 },
+];
+
 const MAX_DRAW_DISTANCE = 1000.0;
 
 interface BFBBProgramDef {
     PLAYER?: string;
+    ENT?: string;
     SKY?: string;
     SKY_DEPTH?: string;
     USE_TEXTURE?: string;
@@ -47,6 +52,7 @@ class BFBBProgram extends DeviceProgram {
 
     public static ub_SceneParams = 0;
     public static ub_ModelParams = 1;
+    public static ub_EntParams = 2;
 
     public both = program_glsl;
 
@@ -54,6 +60,8 @@ class BFBBProgram extends DeviceProgram {
         super();
         if (def.PLAYER)
             this.defines.set('PLAYER', def.PLAYER);
+        if (def.ENT)
+            this.defines.set('ENT', def.ENT);
         if (def.SKY)
             this.defines.set('SKY', def.SKY);
         if (def.SKY_DEPTH)
@@ -346,6 +354,7 @@ export interface JSP {
 export interface Ent {
     asset: Assets.EntAsset;
     models: ModelData[];
+    surface?: Assets.SurfAsset;
 }
 
 export interface Button {
@@ -743,10 +752,6 @@ export class MeshRenderer extends BaseRenderer {
     }
 }
 
-const bindingLayouts: GfxBindingLayoutDescriptor[] = [
-    { numUniformBuffers: 2, numSamplers: 1 },
-];
-
 export class ModelRenderer extends BaseRenderer {
     constructor(parent: BaseRenderer | undefined, device: GfxDevice, cache: GfxRenderCache,
         defines: BFBBProgramDef, public model: ModelData, public color: Color = White) {
@@ -807,8 +812,12 @@ export class EntRenderer extends BaseRenderer {
     public isSkydome = false;
     public skydomeLockY = false;
 
+    public uvOffset = vec2.create();
+
     constructor(parent: BaseRenderer | undefined, device: GfxDevice, cache: GfxRenderCache, public readonly ent: Ent, defines: BFBBProgramDef = {}) {
         super(parent);
+
+        defines.ENT = '1';
 
         this.visible = (ent.asset.flags & Assets.EntFlags.Visible) != 0;
         this.color = {
@@ -829,6 +838,9 @@ export class EntRenderer extends BaseRenderer {
             }
         }
 
+        if (ent.surface)
+            console.log(ent.surface);
+
         for (let i = 0; i < ent.models.length; i++)
             this.addRenderer(new ModelRenderer(this, device, cache, defines, ent.models[i], this.color));
 
@@ -846,6 +858,12 @@ export class EntRenderer extends BaseRenderer {
             if (this.skydomeLockY)
                 this.modelMatrix[13] = renderState.cameraPosition[1];
         }
+
+        if (this.ent.surface) {
+            const uvfx = this.ent.surface.uvfx[0];
+            this.uvOffset[0] += uvfx.trans_spd[0] * renderState.deltaTime;
+            this.uvOffset[1] += uvfx.trans_spd[1] * renderState.deltaTime;
+        }
     }
 
     public prepareToRender(renderState: RenderState) {
@@ -856,11 +874,20 @@ export class EntRenderer extends BaseRenderer {
         super.prepareToRender(renderState);
         if (this.isCulled || (!this.visible && !renderState.hacks.invisibleEntities)) return;
 
+        const template = renderState.instManager.pushTemplateRenderInst();
+        template.setBindingLayouts(bindingLayouts);
+
+        let offs = template.allocateUniformBuffer(BFBBProgram.ub_EntParams, 4);
+        const mapped = template.mapUniformBufferF32(BFBBProgram.ub_EntParams);
+        offs += fillVec4(mapped, offs, this.uvOffset[0], this.uvOffset[1]);
+
         for (let i = 0; i < this.renderers.length; i++) {
             const modelRenderer = this.renderers[i] as ModelRenderer;
             modelRenderer.color = this.color;
             modelRenderer.prepareToRender(renderState);
         }
+        
+        renderState.instManager.popTemplateRenderInst();
     }
 
     public destroy(device: GfxDevice) {

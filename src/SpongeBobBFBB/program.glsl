@@ -41,6 +41,12 @@ layout(row_major, std140) uniform ub_ModelParams {
     vec4 u_ModelColor;
 };
 
+layout(row_major, std140) uniform ub_EntParams {
+    vec4 u_SurfaceParams;
+};
+
+#define u_SurfaceUVOffset u_SurfaceParams.xy
+
 uniform sampler2D u_Texture;
 
 varying vec4 v_Position;
@@ -58,6 +64,10 @@ void main() {
     v_Position = Mul(u_Projection, Mul(_Mat4x4(u_ViewMatrix), Mul(_Mat4x4(u_ModelMatrix), vec4(a_Position, 1.0))));
     v_Color = a_Color;
     v_TexCoord = a_TexCoord;
+
+#ifdef ENT
+    v_TexCoord += u_SurfaceUVOffset;
+#endif
 
     vec3 t_Normal = normalize(Mul(_Mat4x4(u_ModelMatrix), vec4(a_Normal, 0.0)).xyz);
 

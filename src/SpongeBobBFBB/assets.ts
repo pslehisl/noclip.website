@@ -118,14 +118,150 @@ export function readFogAsset(stream: DataStream): FogAsset {
     const fogStop = stream.readFloat();
     const transitionTime = stream.readFloat();
     const fogType = stream.readUInt8();
-    const padFog: number[] = [];
-    padFog.push(stream.readUInt8());
-    padFog.push(stream.readUInt8());
-    padFog.push(stream.readUInt8());
+    const padFog: number[] = [0,0,0];
+    padFog[0] = stream.readUInt8();
+    padFog[1] = stream.readUInt8();
+    padFog[2] = stream.readUInt8();
     const fog: FogAsset = { id, baseType, linkCount, baseFlags, links, bkgndColor,
         fogColor, fogDensity, fogStart, fogStop, transitionTime, fogType, padFog };
     readLinks(stream, fog);
     return fog;
+}
+
+export interface SurfMatFX {
+    flags: number;
+    bumpmapID: number;
+    envmapID: number;
+    shininess: number;
+    bumpiness: number;
+    dualmapID: number;
+}
+
+function readSurfMatFX(stream: DataStream): SurfMatFX {
+    const flags = stream.readUInt32();
+    const bumpmapID = stream.readUInt32();
+    const envmapID = stream.readUInt32();
+    const shininess = stream.readFloat();
+    const bumpiness = stream.readFloat();
+    const dualmapID = stream.readUInt32();
+    return { flags, bumpmapID, envmapID, shininess, bumpiness, dualmapID };
+}
+
+export interface SurfColorFX {
+    flags: number;
+    mode: number;
+    speed: number;
+}
+
+function readSurfColorFX(stream: DataStream): SurfColorFX {
+    const flags = stream.readUInt16();
+    const mode = stream.readUInt16();
+    const speed = stream.readFloat();
+    return { flags, mode, speed };
+}
+
+export interface SurfTextureAnim {
+    pad: number;
+    mode: number;
+    group: number;
+    speed: number;
+}
+
+function readSurfTextureAnim(stream: DataStream): SurfTextureAnim {
+    const pad = stream.readUInt16();
+    const mode = stream.readUInt16();
+    const group = stream.readUInt32();
+    const speed = stream.readFloat();
+    return { pad, mode, group, speed };
+}
+
+export interface SurfUVFX {
+    mode: number;
+    rot: number;
+    rot_spd: number;
+    trans: vec3;
+    trans_spd: vec3;
+    scale: vec3;
+    scale_spd: vec3;
+    min: vec3;
+    max: vec3;
+    minmax_spd: vec3;
+}
+
+function readSurfUVFX(stream: DataStream): SurfUVFX {
+    const mode = stream.readInt32();
+    const rot = stream.readFloat();
+    const rot_spd = stream.readFloat();
+    const trans = stream.readVec3();
+    const trans_spd = stream.readVec3();
+    const scale = stream.readVec3();
+    const scale_spd = stream.readVec3();
+    const min = stream.readVec3();
+    const max = stream.readVec3();
+    const minmax_spd = stream.readVec3();
+    return { mode, rot, rot_spd, trans, trans_spd, scale, scale_spd, min, max, minmax_spd };
+}
+
+export interface SurfAsset extends BaseAsset {
+    game_damage_type: number;
+    game_sticky: number;
+    game_damage_flags: number;
+    surf_type: number;
+    phys_pad: number;
+    sld_start: number;
+    sld_stop: number;
+    phys_flags: number;
+    friction: number;
+    matfx: SurfMatFX;
+    colorfx: SurfColorFX;
+    texture_anim_flags: number;
+    texture_anim: SurfTextureAnim[];
+    uvfx_flags: number;
+    uvfx: SurfUVFX[];
+    on: number;
+    surf_pad: number[];
+    oob_delay: number;
+    walljump_scale_xz: number;
+    walljump_scale_y: number;
+    damage_timer: number;
+    damage_bounce: number;
+}
+
+export function readSurfAsset(stream: DataStream): SurfAsset {
+    const { id, baseType, linkCount, baseFlags, links } = readBaseAsset(stream);
+    const game_damage_type = stream.readUInt8();
+    const game_sticky = stream.readUInt8();
+    const game_damage_flags = stream.readUInt8();
+    const surf_type = stream.readUInt8();
+    const phys_pad = stream.readUInt8();
+    const sld_start = stream.readUInt8();
+    const sld_stop = stream.readUInt8();
+    const phys_flags = stream.readUInt8();
+    const friction = stream.readFloat();
+    const matfx = readSurfMatFX(stream);
+    const colorfx = readSurfColorFX(stream);
+    const texture_anim_flags = stream.readUInt32();
+    const texture_anim: SurfTextureAnim[] = [];
+    texture_anim.push(readSurfTextureAnim(stream));
+    texture_anim.push(readSurfTextureAnim(stream));
+    const uvfx_flags = stream.readUInt32();
+    const uvfx: SurfUVFX[] = [];
+    uvfx.push(readSurfUVFX(stream));
+    uvfx.push(readSurfUVFX(stream));
+    const on = stream.readUInt8();
+    const surf_pad: number[] = [0,0,0];
+    surf_pad[0] = stream.readUInt8();
+    surf_pad[1] = stream.readUInt8();
+    surf_pad[2] = stream.readUInt8();
+    const oob_delay = stream.readFloat();
+    const walljump_scale_xz = stream.readFloat();
+    const walljump_scale_y = stream.readFloat();
+    const damage_timer = stream.readFloat();
+    const damage_bounce = stream.readFloat();
+    const surf: SurfAsset = { id, baseType, linkCount, baseFlags, links, game_damage_type, game_sticky, game_damage_flags, surf_type, phys_pad, sld_start, sld_stop, phys_flags,
+        friction, matfx, colorfx, texture_anim_flags, texture_anim, uvfx_flags, uvfx, on, surf_pad, oob_delay, walljump_scale_xz, walljump_scale_y, damage_timer, damage_bounce };
+    readLinks(stream, surf);
+    return surf;
 }
 
 export const enum EntFlags {
@@ -306,9 +442,9 @@ export function readMotionAsset(stream: DataStream): MotionAsset {
         case MotionType.Pendulum: {
             const flags = stream.readUInt8();
             const plane = stream.readUInt8();
-            const pad: number[] = [];
-            pad.push(stream.readUInt8());
-            pad.push(stream.readUInt8());
+            const pad: number[] = [0, 0];
+            pad[0] = stream.readUInt8();
+            pad[1] = stream.readUInt8();
             const len = stream.readFloat();
             const range = stream.readFloat();
             const period = stream.readFloat();
