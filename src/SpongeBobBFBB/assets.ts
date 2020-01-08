@@ -12,14 +12,9 @@ export interface LinkAsset {
     chkAssetID: number;
 }
 
-const LinkAssetSize = 0x20;
-
-function preLinkSize(linkCount: number, totalSize: number): number {
-    return totalSize - (linkCount * LinkAssetSize);
-}
-
-function readLinks(stream: DataStream, base: BaseAsset) {
-    for (let i = 0; i < base.linkCount; i++) {
+export function readLinks(stream: DataStream, linkCount: number): LinkAsset[] {
+    const links: LinkAsset[] = [];
+    for (let i = 0; i < linkCount; i++) {
         const srcEvent = stream.readUInt16();
         const dstEvent = stream.readUInt16();
         const dstAssetID = stream.readUInt32();
@@ -28,8 +23,9 @@ function readLinks(stream: DataStream, base: BaseAsset) {
             param.push(stream.readFloat());
         const paramWidgetAssetID = stream.readUInt32();
         const chkAssetID = stream.readUInt32();
-        base.links.push({ srcEvent, dstEvent, dstAssetID, param, paramWidgetAssetID, chkAssetID });
+        links.push({ srcEvent, dstEvent, dstAssetID, param, paramWidgetAssetID, chkAssetID });
     }
+    return links;
 }
 
 export const enum BaseFlags {
@@ -45,7 +41,6 @@ export interface BaseAsset {
     baseType: number;
     linkCount: number;
     baseFlags: number;
-    links: LinkAsset[];
 }
 
 export function readBaseAsset(stream: DataStream): BaseAsset {
@@ -53,8 +48,7 @@ export function readBaseAsset(stream: DataStream): BaseAsset {
     const baseType = stream.readUInt8();
     const linkCount = stream.readUInt8();
     const baseFlags = stream.readUInt16();
-    const links: LinkAsset[] = [];
-    return { id, baseType, linkCount, baseFlags, links };
+    return { id, baseType, linkCount, baseFlags };
 }
 
 export interface EnvAsset extends BaseAsset {
@@ -76,7 +70,7 @@ export interface EnvAsset extends BaseAsset {
 }
 
 export function readEnvAsset(stream: DataStream): EnvAsset {
-    const { id, baseType, linkCount, baseFlags, links } = readBaseAsset(stream);
+    const { id, baseType, linkCount, baseFlags } = readBaseAsset(stream);
     const bspAssetID = stream.readUInt32();
     const startCameraAssetID = stream.readUInt32();
     const climateFlags = stream.readUInt32();
@@ -92,9 +86,8 @@ export function readEnvAsset(stream: DataStream): EnvAsset {
     const bspMapperCollisionID = stream.readUInt32();
     const bspMapperFXID = stream.readUInt32();
     const loldHeight = stream.readFloat();
-    const env: EnvAsset = { id, baseType, linkCount, baseFlags, links, bspAssetID, startCameraAssetID, climateFlags, climateStrengthMin, climateStrengthMax,
+    const env: EnvAsset = { id, baseType, linkCount, baseFlags, bspAssetID, startCameraAssetID, climateFlags, climateStrengthMin, climateStrengthMax,
         bspLightKit, objectLightKit, padF1, bspCollisionAssetID, bspFXAssetID, bspCameraAssetID, bspMapperID, bspMapperCollisionID, bspMapperFXID, loldHeight };
-    readLinks(stream, env);
     return env;
 }
 
@@ -110,7 +103,7 @@ export interface FogAsset extends BaseAsset {
 }
 
 export function readFogAsset(stream: DataStream): FogAsset {
-    const { id, baseType, linkCount, baseFlags, links } = readBaseAsset(stream);
+    const { id, baseType, linkCount, baseFlags } = readBaseAsset(stream);
     const bkgndColor = stream.readColor8();
     const fogColor = stream.readColor8();
     const fogDensity = stream.readFloat();
@@ -122,9 +115,8 @@ export function readFogAsset(stream: DataStream): FogAsset {
     padFog[0] = stream.readUInt8();
     padFog[1] = stream.readUInt8();
     padFog[2] = stream.readUInt8();
-    const fog: FogAsset = { id, baseType, linkCount, baseFlags, links, bkgndColor,
+    const fog: FogAsset = { id, baseType, linkCount, baseFlags, bkgndColor,
         fogColor, fogDensity, fogStart, fogStop, transitionTime, fogType, padFog };
-    readLinks(stream, fog);
     return fog;
 }
 
@@ -228,7 +220,7 @@ export interface SurfAsset extends BaseAsset {
 }
 
 export function readSurfAsset(stream: DataStream): SurfAsset {
-    const { id, baseType, linkCount, baseFlags, links } = readBaseAsset(stream);
+    const { id, baseType, linkCount, baseFlags } = readBaseAsset(stream);
     const game_damage_type = stream.readUInt8();
     const game_sticky = stream.readUInt8();
     const game_damage_flags = stream.readUInt8();
@@ -258,9 +250,8 @@ export function readSurfAsset(stream: DataStream): SurfAsset {
     const walljump_scale_y = stream.readFloat();
     const damage_timer = stream.readFloat();
     const damage_bounce = stream.readFloat();
-    const surf: SurfAsset = { id, baseType, linkCount, baseFlags, links, game_damage_type, game_sticky, game_damage_flags, surf_type, phys_pad, sld_start, sld_stop, phys_flags,
+    const surf: SurfAsset = { id, baseType, linkCount, baseFlags, game_damage_type, game_sticky, game_damage_flags, surf_type, phys_pad, sld_start, sld_stop, phys_flags,
         friction, matfx, colorfx, texture_anim_flags, texture_anim, uvfx_flags, uvfx, on, surf_pad, oob_delay, walljump_scale_xz, walljump_scale_y, damage_timer, damage_bounce };
-    readLinks(stream, surf);
     return surf;
 }
 
@@ -289,7 +280,7 @@ export interface EntAsset extends BaseAsset {
 }
 
 export function readEntAsset(stream: DataStream, beta: boolean): EntAsset {
-    const { id, baseType, linkCount, baseFlags, links } = readBaseAsset(stream);
+    const { id, baseType, linkCount, baseFlags } = readBaseAsset(stream);
     const flags = stream.readUInt8();
     const subtype = stream.readUInt8();
     const pflags = stream.readUInt8();
@@ -311,11 +302,11 @@ export function readEntAsset(stream: DataStream, beta: boolean): EntAsset {
     const seeThruSpeed = stream.readFloat();
     const modelInfoID = stream.readUInt32();
     const animListID = stream.readUInt32();
-    return { id, baseType, linkCount, baseFlags, links, flags, subtype, pflags, moreFlags, pad, surfaceID,
+    return { id, baseType, linkCount, baseFlags, flags, subtype, pflags, moreFlags, pad, surfaceID,
         ang, pos, scale, redMult, greenMult, blueMult, seeThru, seeThruSpeed, modelInfoID, animListID };
 }
 
-interface MotionERData {
+export interface EntMotionERData {
     ret_pos: vec3;
     ext_dpos: vec3;
     ext_tm: number;
@@ -323,21 +314,21 @@ interface MotionERData {
     ret_tm: number;
     ret_wait_tm: number;
 }
-interface MotionOrbitData {
+export interface EntMotionOrbitData {
     center: vec3;
     w: number;
     h: number;
     period: number;
 }
-interface MotionSplineData {
+export interface EntMotionSplineData {
     unknown: number;
 }
-interface MotionMPData {
+export interface EntMotionMPData {
     flags: number;
     mp_id: number;
     speed: number;
 }
-interface MotionMechData {
+export interface EntMotionMechData {
     type: number;
     flags: number;
     sld_axis: number;
@@ -353,7 +344,7 @@ interface MotionMechData {
     ret_delay: number;
     post_ret_delay: number;
 }
-interface MotionPenData {
+export interface EntMotionPenData {
     flags: number;
     plane: number;
     pad: number[];
@@ -363,16 +354,24 @@ interface MotionPenData {
     phase: number;
 }
 
-export type MotionData = MotionERData | MotionOrbitData | MotionSplineData | MotionMPData | MotionMechData | MotionPenData;
+export const enum EntMotionMechType {
+    Slide,
+    Rotate,
+    SlideAndRotate,
+    SlideThenRotate,
+    RotateThenSlide
+}
 
-export interface MotionAsset {
+export type EntMotionData = EntMotionERData | EntMotionOrbitData | EntMotionSplineData | EntMotionMPData | EntMotionMechData | EntMotionPenData;
+
+export interface EntMotionAsset {
     type: number;
     use_banking: number;
     flags: number;
-    data: MotionData | undefined;
+    data: EntMotionData | undefined;
 }
 
-export enum MotionType {
+export enum EntMotionType {
     ExtendRetract,
     Orbit,
     Spline,
@@ -382,46 +381,46 @@ export enum MotionType {
     None
 }
 
-export function readMotionAsset(stream: DataStream): MotionAsset {
+export function readEntMotionAsset(stream: DataStream): EntMotionAsset {
     const type = stream.readUInt8();
     const use_banking = stream.readUInt8();
     const flags = stream.readUInt16();
-    let data: MotionData | undefined;
+    let data: EntMotionData | undefined;
 
     const dataEnd = stream.offset + 0x2C;
 
     switch (type) {
-        case MotionType.ExtendRetract: {
+        case EntMotionType.ExtendRetract: {
             const ret_pos = stream.readVec3();
             const ext_dpos = stream.readVec3();
             const ext_tm = stream.readFloat();
             const ext_wait_tm = stream.readFloat();
             const ret_tm = stream.readFloat();
             const ret_wait_tm = stream.readFloat();
-            data = { ret_pos, ext_dpos, ext_tm, ext_wait_tm, ret_tm, ret_wait_tm } as MotionERData;
+            data = { ret_pos, ext_dpos, ext_tm, ext_wait_tm, ret_tm, ret_wait_tm } as EntMotionERData;
             break;
         }
-        case MotionType.Orbit: {
+        case EntMotionType.Orbit: {
             const center = stream.readVec3();
             const w = stream.readFloat();
             const h = stream.readFloat();
             const period = stream.readFloat();
-            data = { center, w, h, period } as MotionOrbitData;
+            data = { center, w, h, period } as EntMotionOrbitData;
             break;
         }
-        case MotionType.Spline: {
+        case EntMotionType.Spline: {
             const unknown = stream.readInt32();
-            data = { unknown } as MotionSplineData;
+            data = { unknown } as EntMotionSplineData;
             break;
         }
-        case MotionType.MovePoint: {
+        case EntMotionType.MovePoint: {
             const flags = stream.readUInt32();
             const mp_id = stream.readUInt32();
             const speed = stream.readFloat();
-            data = { flags, mp_id, speed } as MotionMPData;
+            data = { flags, mp_id, speed } as EntMotionMPData;
             break;
         }
-        case MotionType.Mechanism: {
+        case EntMotionType.Mechanism: {
             const type = stream.readUInt8();
             const flags = stream.readUInt8();
             const sld_axis = stream.readUInt8();
@@ -436,10 +435,10 @@ export function readMotionAsset(stream: DataStream): MotionAsset {
             const rot_dec_tm = stream.readFloat();
             const ret_delay = stream.readFloat();
             const post_ret_delay = stream.readFloat();
-            data = { type, flags, sld_axis, rot_axis, sld_dist, sld_tm, sld_acc_tm, sld_dec_tm, rot_dist, rot_tm, rot_acc_tm, rot_dec_tm, ret_delay, post_ret_delay } as MotionMechData;
+            data = { type, flags, sld_axis, rot_axis, sld_dist, sld_tm, sld_acc_tm, sld_dec_tm, rot_dist, rot_tm, rot_acc_tm, rot_dec_tm, ret_delay, post_ret_delay } as EntMotionMechData;
             break;
         }
-        case MotionType.Pendulum: {
+        case EntMotionType.Pendulum: {
             const flags = stream.readUInt8();
             const plane = stream.readUInt8();
             const pad: number[] = [0, 0];
@@ -452,7 +451,7 @@ export function readMotionAsset(stream: DataStream): MotionAsset {
             data = { flags, plane, pad, len, range, period, phase };
             break;
         }
-        case MotionType.None:
+        case EntMotionType.None:
             break;
         default:
             console.warn(`Unknown motion type ${type}`);
@@ -463,32 +462,31 @@ export function readMotionAsset(stream: DataStream): MotionAsset {
     return { type, use_banking, flags, data };
 }
 
+export enum ButtonActMethod {
+    Button,
+    PressurePlate
+}
+
 export interface ButtonAsset {
-    ent: EntAsset;
     modelPressedInfoID: number;
     actMethod: number;
     initButtonState: number;
     isReset: number;
     resetDelay: number;
     buttonActFlags: number;
-    motion: MotionAsset;
 }
 
-export function readButtonAsset(stream: DataStream, beta: boolean): ButtonAsset {
-    const ent = readEntAsset(stream, beta);
+export function readButtonAsset(stream: DataStream): ButtonAsset {
     const modelPressedInfoID = stream.readUInt32();
     const actMethod = stream.readUInt32();
     const initButtonState = stream.readInt32();
     const isReset = stream.readInt32();
     const resetDelay = stream.readFloat();
     const buttonActFlags = stream.readUInt32();
-    const motion = readMotionAsset(stream);
-    readLinks(stream, ent);
-    return { ent, modelPressedInfoID, actMethod, initButtonState, isReset, resetDelay, buttonActFlags, motion };
+    return { modelPressedInfoID, actMethod, initButtonState, isReset, resetDelay, buttonActFlags };
 }
 
 export interface DestructObjAsset {
-    ent: EntAsset;
     animSpeed: number;
     initAnimState: number;
     health: number;
@@ -507,8 +505,7 @@ export interface DestructObjAsset {
     destroyModel: number;
 }
 
-export function readDestructObjAsset(stream: DataStream, beta: boolean): DestructObjAsset {
-    const ent = readEntAsset(stream, beta);
+export function readDestructObjAsset(stream: DataStream): DestructObjAsset {
     const animSpeed = stream.readFloat();
     const initAnimState = stream.readUInt32();
     const health = stream.readUInt32();
@@ -527,13 +524,11 @@ export function readDestructObjAsset(stream: DataStream, beta: boolean): Destruc
     const sfx_hit = stream.readUInt32();
     const hitModel = stream.readUInt32();
     const destroyModel = stream.readUInt32();
-    readLinks(stream, ent);
-    return { ent, animSpeed, initAnimState, health, spawnItemID, dflags, collType, fxType, pad, blast_radius,
+    return { animSpeed, initAnimState, health, spawnItemID, dflags, collType, fxType, pad, blast_radius,
         blast_strength, shrapnelID_destroy, shrapnelID_hit, sfx_destroy, sfx_hit, hitModel, destroyModel };
 }
 
 export interface NPCAsset {
-    ent: EntAsset;
     npcFlags: number;
     npcModel: number;
     npcProps: number;
@@ -542,32 +537,27 @@ export interface NPCAsset {
     taskWidgetSecond: number;
 }
 
-export function readNPCAsset(stream: DataStream, beta: boolean): NPCAsset {
-    const ent = readEntAsset(stream, beta);
+export function readNPCAsset(stream: DataStream): NPCAsset {
     const npcFlags = stream.readInt32();
     const npcModel = stream.readInt32();
     const npcProps = stream.readInt32();
     const movepoint = stream.readUInt32();
     const taskWidgetPrime = stream.readUInt32();
     const taskWidgetSecond = stream.readUInt32();
-    readLinks(stream, ent);
-    return { ent, npcFlags, npcModel, npcProps, movepoint, taskWidgetPrime, taskWidgetSecond };
+    return { npcFlags, npcModel, npcProps, movepoint, taskWidgetPrime, taskWidgetSecond };
 }
 
 export interface PickupAsset {
-    ent: EntAsset;
     pickupHash: number;
     pickupFlags: number;
     pickupValue: number;
 }
 
-export function readPickupAsset(stream: DataStream, beta: boolean): PickupAsset {
-    const ent = readEntAsset(stream, beta);
+export function readPickupAsset(stream: DataStream): PickupAsset {
     const pickupHash = stream.readUInt32();
     const pickupFlags = stream.readUInt16();
     const pickupValue = stream.readUInt16();
-    readLinks(stream, ent);
-    return { ent, pickupHash, pickupFlags, pickupValue };
+    return { pickupHash, pickupFlags, pickupValue };
 }
 
 interface PlatformERData { nodata: number;}
@@ -643,16 +633,13 @@ export enum PlatformType {
 }
 
 export interface PlatformAsset {
-    ent: EntAsset;
     type: number;
     pad: number;
     flags: number;
     data: PlatformData | undefined;
-    motion: MotionAsset;
 }
 
-export function readPlatformAsset(stream: DataStream, beta: boolean): PlatformAsset {
-    const ent = readEntAsset(stream, beta);
+export function readPlatformAsset(stream: DataStream): PlatformAsset {
     const type = stream.readUInt8();
     const pad = stream.readUInt8();
     const flags = stream.readUInt16();
@@ -770,42 +757,23 @@ export function readPlatformAsset(stream: DataStream, beta: boolean): PlatformAs
 
     stream.offset = dataEnd;
 
-    const motion = readMotionAsset(stream);
-    readLinks(stream, ent);
-
-    return { ent, type, pad, flags, data, motion };
-}
-
-export interface PlayerAsset {
-    ent: EntAsset;
-    lightKitID: number;
-}
-
-export function readPlayerAsset(stream: DataStream, beta: boolean): PlayerAsset {
-    const ent = readEntAsset(stream, beta);
-    readLinks(stream, ent);
-    const lightKitID = stream.readUInt32();
-
-    return { ent, lightKitID };
+    return { type, pad, flags, data };
 }
 
 export interface SimpleObjAsset {
-    ent: EntAsset;
     animSpeed: number;
     initAnimState: number;
     collType: number;
     flags: number;
 }
 
-export function readSimpleObjAsset(stream: DataStream, beta: boolean): SimpleObjAsset {
-    const ent = readEntAsset(stream, beta);
+export function readSimpleObjAsset(stream: DataStream): SimpleObjAsset {
     const animSpeed = stream.readFloat();
     const initAnimState = stream.readUInt32();
     const collType = stream.readUInt8();
     const flags = stream.readUInt8();
     stream.align(4);
-    readLinks(stream, ent);
-    return { ent, animSpeed, initAnimState, collType, flags };
+    return { animSpeed, initAnimState, collType, flags };
 }
 
 export interface LightKitLight {
@@ -843,7 +811,7 @@ export function readLightKit(stream: DataStream): LightKit {
     return { tagID, groupID, lightCount, lightList, lightListArray };
 }
 
-export interface ModelAssetInst {
+export interface ModelInst {
     ModelID: number;
     Flags: number;
     Parent: number;
@@ -854,22 +822,22 @@ export interface ModelAssetInst {
     MatPos: vec3;
 }
 
-export interface ModelAssetInfo {
+export interface ModelInfoAsset {
     Magic: number;
     NumModelInst: number;
     AnimTableID: number;
     CombatID: number;
     BrainID: number;
-    modelInst: ModelAssetInst[];
+    modelInst: ModelInst[];
 }
 
-export function readModelInfo(stream: DataStream): ModelAssetInfo {
+export function readModelInfo(stream: DataStream): ModelInfoAsset {
     const Magic = stream.readUInt32();
     const NumModelInst = stream.readUInt32();
     const AnimTableID = stream.readUInt32();
     const CombatID = stream.readUInt32();
     const BrainID = stream.readUInt32();
-    const modelInst: ModelAssetInst[] = [];
+    const modelInst: ModelInst[] = [];
     for (let i = 0; i < NumModelInst; i++) {
         const ModelID = stream.readUInt32();
         const Flags = stream.readUInt16();
@@ -884,7 +852,6 @@ export function readModelInfo(stream: DataStream): ModelAssetInfo {
     return { Magic, NumModelInst, AnimTableID, CombatID, BrainID, modelInst };
 }
 
-// try not to confuse this with PickupAsset lol
 export interface PickupTableEntry {
     pickupHash: number;
     pickupType: number;

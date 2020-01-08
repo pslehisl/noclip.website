@@ -8,18 +8,6 @@ import { Camera, computeViewSpaceDepthFromWorldSpacePoint } from '../Camera';
 import { AABB } from '../Geometry';
 import { clamp } from '../MathHelpers';
 
-export function stringHash(str: string): number {
-    let hash = 0;
-    
-    for (let i = 0; i < str.length; i++) {
-        let ch = str.charCodeAt(i);
-        ch -= ch & (ch >>> 1) & 0x20; // quick and dirty lowercase
-        hash = ch + hash * 131;
-    }
-
-    return hash;
-}
-
 // based on RotationYawPitchRoll() from SharpDX
 // https://github.com/sharpdx/SharpDX/blob/master/Source/SharpDX.Mathematics/Quaternion.cs
 export function quatFromYPR(out: quat, ypr: vec3) {
@@ -188,72 +176,79 @@ export class DataStream {
     }
 }
 
-export class DataCacheIDName<T> {
-    private nameToDataMap = new Map<string, T>();
-    private idToDataMap = new Map<number, T>();
+interface DataCacheEntry<T> {
+    sceneid: string;
+    id: number;
+    name: string;
+    data: T;
+    onremove?: () => void;
+}
 
-    private nameToLockMap = new Map<string, boolean>();
-    private idToLockMap = new Map<number, boolean>();
+export class DataCache<T> {
+    public entries: DataCacheEntry<T>[] = [];
 
-    public get count() { return this.idToDataMap.size; }
-
-    public add(data: T, name: string, id: number, lock: boolean = false) {
-        if (!this.idToLockMap.get(id)) {
-            this.nameToDataMap.set(name, data);
-            this.idToDataMap.set(id, data);
-            this.nameToLockMap.set(name, lock);
-            this.idToLockMap.set(id, lock);
-        }
-    }
-
-    public getByName(name: string) {
-        return this.nameToDataMap.get(name);
+    public add(data: T, sceneid: string, id: number, name: string, onremove?: () => void) {
+        this.entries.push({ sceneid, id, name, data, onremove });
     }
 
     public getByID(id: number) {
-        return this.idToDataMap.get(id);
+        const entry = this.entries.find((entry) => {
+            return entry.id === id;
+        });
+        return entry ? entry.data : undefined;
     }
 
-    public ids() {
-        return this.idToDataMap.keys();
+    public getByName(name: string) {
+        const entry = this.entries.find((entry) => {
+            return entry.name === name;
+        });
+        return entry ? entry.data : undefined;
     }
 
-    public names() {
-        return this.nameToDataMap.keys();
-    }
+    public removeByID(id: number) {
+        const index = this.entries.findIndex((entry) => {
+            return entry.id === id;
+        });
 
-    public data() {
-        return this.idToDataMap.values();
-    }
-
-    public isIDLocked(id: number) {
-        return this.idToLockMap.get(id) || false;
-    }
-
-    public isNameLocked(name: string) {
-        return this.nameToLockMap.get(name) || false;
-    }
-
-    public removeByName(name: string, force: boolean = false) {
-        if (force || !this.isNameLocked(name)) {
-            this.nameToDataMap.delete(name);
-            this.nameToLockMap.delete(name);
+        if (index != -1) {
+            const entry = this.entries.splice(index, 1)[0];
+            if (entry.onremove)
+                entry.onremove();
         }
     }
 
-    public removeByID(id: number, force: boolean = false) {
-        if (force || !this.isIDLocked(id)) {
-            this.idToDataMap.delete(id);
-            this.idToLockMap.delete(id);
+    public removeByName(name: string) {
+        const index = this.entries.findIndex((entry) => {
+            return entry.name === name;
+        });
+
+        if (index != -1) {
+            const entry = this.entries.splice(index, 1)[0];
+            if (entry.onremove)
+                entry.onremove();
         }
     }
 
-    // Clears just unlocked data or all data
-    public clear(all: boolean = false) {
-        for (const [id] of this.idToDataMap)
-            this.removeByID(id, all);
-        for (const [name] of this.nameToDataMap)
-            this.removeByName(name, all);
+    public clearScene(sceneid: string) {
+        const newEntries: DataCacheEntry<T>[] = [];
+
+        for (const entry of this.entries) {
+            if (entry.sceneid !== sceneid)
+                newEntries.push(entry);
+            else if (entry.onremove)
+                entry.onremove();
+        }
+
+        this.entries = newEntries;
+    }
+
+    public clearAll() {
+        for (const entry of this.entries) {
+            if (entry.onremove)
+                entry.onremove();
+        }
+
+        this.entries.length = 0;
     }
 }
 
